@@ -19,6 +19,3 @@ node_modules
 ignition/deployments/chain-31337
 
 package-lock.json
-
-out/
-lib/
