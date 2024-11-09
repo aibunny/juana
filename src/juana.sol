@@ -41,6 +41,10 @@ contract juanaContract is ERC721Enumerable, Ownable, IERC5484 {
         return _kycDetails[tokenId].kycTimestamp != 0;
     }
 
+    // allows minting to recipient wallet address, unique id for the token
+    // and the burn authorization for the token
+    // it should allow burning at users request but
+    // only the issuer can initiate it
     function mintKYC(
         address to,
         uint256 tokenId,
@@ -49,8 +53,12 @@ contract juanaContract is ERC721Enumerable, Ownable, IERC5484 {
         bool isVerified
     ) external onlyOwner {
         require(isVerified, "KYC must be verified");
+        // kyc hash must be valid
+        // TODO: add a check to verify the kyc hash offchain some oracle maybe
         require(kycHash != bytes32(0), "Invalid KYC hash");
 
+
+        // only the iisuer can allow minting
         _mint(to, tokenId);
         _kycDetails[tokenId] = KYCDetails(
             burnAuthorization,
@@ -70,6 +78,7 @@ contract juanaContract is ERC721Enumerable, Ownable, IERC5484 {
     function burn(uint256 tokenId) external {
         require(exists(tokenId), "Token does not exist");
 
+        // check if the burn conditions are met
         BurnAuth auth = _kycDetails[tokenId].burnAuth;
 
         if (auth == BurnAuth.IssuerOnly) {
@@ -86,7 +95,7 @@ contract juanaContract is ERC721Enumerable, Ownable, IERC5484 {
         }
 
         _burn(tokenId);
-        delete _kycDetails[tokenId];
+        delete _kycDetails[tokenId]; //clean up
     }
 
     function transferFrom(
@@ -97,24 +106,34 @@ contract juanaContract is ERC721Enumerable, Ownable, IERC5484 {
         revert("Transfers of juana soulbound token disabled");
     }
 
-    // function safeTransferFrom(
-    //     address from,
-    //     address to,
-    //     uint256 tokenId
-    // ) public override(ERC721, IERC721) {
-    //     revert("Transfers of juana soulbound token disabled");
-    // }
 
-    // function safeTransferFrom(
-    //     address from,
-    //     address to,
-    //     uint256 tokenId,
-    //     bytes memory data
-    // ) public override(ERC721, IERC721) {
-    //     revert("Transfers of juana soulbound token disabled");
-    // }
+    function _update(address from, address to, uint256 tokenId) internal virtual {
+    // Allow minting (from == address(0)) and burning (to == address(0)), but revert for any other type of transfer
+    if (from != address(0) && to != address(0)) {
+        revert("Transfers are disabled, only minting and burning are allowed");
+    }
+
+    if (from == address(0)) {
+        // Minting: implicitly handled by _mint()
+    } else {
+        // Burning: implicitly handled by _burn()
+        require(ownerOf(tokenId) == from, "Invalid owner for burn");
+    }
+
+    if (to == address(0)) {
+        // Burning: implicitly handled by _burn()
+    } else {
+        // Minting: implicitly handled by _mint()
+        require(balanceOf(to) + 1 > balanceOf(to), "Overflow check failed");
+    }
+
+    // No need to manage _balances or _totalSupply as ERC721 handles this internally
+    emit Transfer(from, to, tokenId);
+}
+
 
     function hasValidKYC(address account) external view returns (bool) {
+        // check if the account has a valid kyc
         uint256 balance = balanceOf(account);
         if (balance == 0) return false;
 
@@ -122,6 +141,8 @@ contract juanaContract is ERC721Enumerable, Ownable, IERC5484 {
         return _kycDetails[tokenId].isVerified;
     }
 
+    // get the kyc details for the account incase
+    //the requesting party needs more information
     function getKYCDetailByAddress(address account) public view returns (KYCDetails memory) {
         uint256 balance = balanceOf(account);
         if (balance == 0) return KYCDetails(BurnAuth.Neither, bytes32(0), 0, false);
@@ -130,6 +151,7 @@ contract juanaContract is ERC721Enumerable, Ownable, IERC5484 {
         return _kycDetails[tokenId];
     }
 
+    // verify the token actually exists
     function isTokenValid(uint256 tokenId) external view returns (bool) {
         return exists(tokenId);
     }
